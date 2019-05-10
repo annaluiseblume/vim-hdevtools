@@ -564,6 +564,56 @@ function! hdevtools#type_clear()
   endif
 endfunction
 
+function! hdevtools#insert_type()
+  let l:file = expand('%')
+  if l:file ==# ''
+    call hdevtools#print_warning("hdevtool#insert_type: current version of hdevtools.vim doesn't support running on an unnamed buffer.")
+    return
+  endif
+
+  if &l:modified
+    call hdevtools#print_warning('hdevtools#insert_type: the buffer has been modified but not written')
+  endif
+
+  let l:line = line('.')
+  let l:col = col('.')
+  let l:cmd_to_get_pos_of_identifier = hdevtools#build_command_bare('type', shellescape(l:file) . ' ' . l:line . ' ' . l:col)
+  let l:output_for_pos = system(l:cmd_to_get_pos_of_identifier)
+
+  if v:shell_error != 0
+    for l:line in split(l:output_for_pos, '\n')
+      call hdevtools#print_error(l:line)
+    endfor
+    return
+  endif
+
+  let l:pos_lines = split(l:output_for_pos, '\n')
+  let l:pos_last_line = l:pos_lines[-1]
+  let l:pos_last_line_parsed = matchlist(l:pos_last_line, '\(\d\+\) \(\d\+\) \(\d\+\) \(\d\+\) "\([^"]\+\)"')
+  if len(l:pos_last_line_parsed) == 0
+    call hdevtools#print_error('hdevtools#insert_type: No Type Information. hdevtools answered: ' . l:last_line)
+    return
+  endif
+  let l:linenumber_of_identifier = l:pos_last_line_parsed[1]
+  let l:string_at_linenumber = getline(l:linenumber_of_identifier)
+  let l:identifier = (split(l:string_at_linenumber))[0]
+
+  let l:cmd_to_get_type_of_identifier = hdevtools#build_command_bare('info', shellescape(l:file) . ' ' . l:identifier)
+  let l:output_for_type = system(l:cmd_to_get_type_of_identifier)
+
+  if v:shell_error != 0
+    for l:line in split(l:output_for_type, '\n')
+      call hdevtools#print_error(l:line)
+    endfor
+    return
+  endif
+
+  let l:type_lines = split(l:output_for_type, '\n')
+  let l:type_definition = l:type_lines[0]
+
+  execute(l:linenumber_of_identifier . "pu!='" . l:type_definition . "'")
+endfunction
+
 function! hdevtools#print_error(msg)
   echohl ErrorMsg
   echomsg a:msg
